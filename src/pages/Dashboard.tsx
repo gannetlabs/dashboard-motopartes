@@ -3,8 +3,8 @@ import { TrendingUp, Receipt, ShoppingCart, Layers } from 'lucide-react'
 import {
   AreaChart,
   Area,
-  Bar,
   ComposedChart,
+  Bar,
   Line,
   XAxis,
   YAxis,
@@ -116,27 +116,35 @@ function DailyChartCard() {
 // ─── Gráfico semanal aislado ──────────────────────────────────────────────────
 function WeeklyChartCard() {
   const [weeks, setWeeks] = useState<8 | 16 | 32>(8)
-  const { ventas: semanales, loading } = useVentasSemanales(weeks)
+  const { ventas: semanales, baseline, loading } = useVentasSemanales(weeks)
 
-  const WINDOW = 3
+  const { chartData, trendColor } = useMemo(() => {
+    const n = semanales.length
+    if (n === 0) return { chartData: [], trendColor: '#22c55e' }
 
-  const chartData = useMemo(
-    () =>
-      semanales.map((v, i, arr) => {
-        const desde = Math.max(0, i - WINDOW + 1)
-        const ventana = arr.slice(desde, i + 1)
-        const media =
-          ventana.length === WINDOW
-            ? ventana.reduce((s, x) => s + x.ventas_brutas, 0) / WINDOW
-            : null
-        return {
-          semana: format(parseISO(v.semana_inicio), 'dd/MM', { locale: es }),
-          Ventas: v.ventas_brutas,
-          'Media 3s': media,
-        }
-      }),
-    [semanales],
-  )
+    // Regresión lineal (mínimos cuadrados)
+    const sumX = (n * (n - 1)) / 2
+    const sumX2 = (n * (n - 1) * (2 * n - 1)) / 6
+    const sumY = semanales.reduce((s, v) => s + v.ventas_brutas, 0)
+    const sumXY = semanales.reduce((s, v, i) => s + i * v.ventas_brutas, 0)
+    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX)
+    const intercept = (sumY - slope * sumX) / n
+
+    const data = semanales.map((v, i) => {
+      const b = baseline.find((b) => b.semana_inicio === v.semana_inicio)
+      return {
+        semana: format(parseISO(v.semana_inicio), 'dd/MM', { locale: es }),
+        Ventas: v.ventas_brutas,
+        Baseline: b?.promedio_8s ?? null,
+        Tendencia: Math.round(intercept + slope * i),
+      }
+    })
+
+    return {
+      chartData: data,
+      trendColor: slope >= 0 ? '#22c55e' : '#ef4444',
+    }
+  }, [semanales, baseline])
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -172,15 +180,25 @@ function WeeklyChartCard() {
               width={48}
             />
             <Tooltip formatter={(v: number, name: string) => [formatCurrency(v), name]} />
-            <Legend iconType="line" />
+            <Legend />
             <Bar dataKey="Ventas" fill="#f97316" radius={[4, 4, 0, 0]} />
             <Line
               type="monotone"
-              dataKey="Media 3s"
-              stroke="#3b82f6"
+              dataKey="Baseline"
+              name="Promedio histórico"
+              stroke="#94a3b8"
+              strokeDasharray="4 4"
+              strokeWidth={1.5}
+              dot={false}
+              connectNulls
+            />
+            <Line
+              type="monotone"
+              dataKey="Tendencia"
+              stroke={trendColor}
               strokeWidth={2}
               dot={false}
-              connectNulls={false}
+              connectNulls
             />
           </ComposedChart>
         </ResponsiveContainer>
