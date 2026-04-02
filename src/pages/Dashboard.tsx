@@ -3,8 +3,9 @@ import { TrendingUp, Receipt, ShoppingCart, Layers } from 'lucide-react'
 import {
   AreaChart,
   Area,
-  BarChart,
+  ComposedChart,
   Bar,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -23,14 +24,14 @@ function SkeletonCard() {
   return <div className="bg-white rounded-xl border border-gray-200 p-5 h-28 animate-pulse" />
 }
 
-export default function Dashboard() {
+// ─── Gráfico diario aislado ──────────────────────────────────────────────────
+// Maneja su propio estado de período y su propio fetch, de modo que al
+// cambiar el período solo se re-renderiza este componente.
+function DailyChartCard() {
   const [chartDays, setChartDays] = useState<7 | 30 | 90>(30)
-  const { ventasDiarias, baseline, today, loading: loadingDiarias } = useVentasDiarias(chartDays)
-  const { ventas: semanales, loading: loadingSemanales } = useVentasSemanales(8)
+  const { ventasDiarias, baseline, loading } = useVentasDiarias(chartDays)
 
-  const loading = loadingDiarias || loadingSemanales
-
-  const dailyChartData = useMemo(
+  const chartData = useMemo(
     () =>
       ventasDiarias.map((v) => {
         const b = baseline.find((b) => b.fecha === v.fecha)
@@ -43,21 +44,181 @@ export default function Dashboard() {
     [ventasDiarias, baseline],
   )
 
-  const weeklyChartData = useMemo(
-    () =>
-      semanales.map((v) => ({
+  return (
+    <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-sm font-semibold text-gray-700">
+          Ventas diarias — últimos {chartDays} días
+        </h2>
+        <div className="flex gap-1">
+          {([7, 30, 90] as const).map((d) => (
+            <button
+              key={d}
+              onClick={() => setChartDays(d)}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                chartDays === d
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              }`}
+            >
+              {d}d
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="text-xs text-gray-400 mb-4">
+        Comparado con el promedio móvil de 28 días
+      </p>
+      {loading ? (
+        <div className="h-60 animate-pulse bg-gray-50 rounded-lg" />
+      ) : (
+        <ResponsiveContainer width="100%" height={240}>
+          <AreaChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="gradVentas" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#f97316" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+            <XAxis dataKey="fecha" tick={{ fontSize: 11 }} interval={4} />
+            <YAxis
+              tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
+              tick={{ fontSize: 11 }}
+              width={52}
+            />
+            <Tooltip formatter={(v: number, name: string) => [formatCurrency(v), name]} />
+            <Legend iconType="line" />
+            <Area
+              type="monotone"
+              dataKey="Ventas"
+              stroke="#f97316"
+              fill="url(#gradVentas)"
+              strokeWidth={2}
+              dot={false}
+            />
+            <Area
+              type="monotone"
+              dataKey="Prom. 28d"
+              stroke="#94a3b8"
+              fill="none"
+              strokeDasharray="4 4"
+              strokeWidth={1.5}
+              dot={false}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  )
+}
+
+// ─── Gráfico semanal aislado ──────────────────────────────────────────────────
+function WeeklyChartCard() {
+  const [weeks, setWeeks] = useState<8 | 16 | 32>(8)
+  const { ventas: semanales, baseline, loading } = useVentasSemanales(weeks)
+
+  const { chartData, trendColor } = useMemo(() => {
+    const n = semanales.length
+    if (n === 0) return { chartData: [], trendColor: '#22c55e' }
+
+    // Regresión lineal (mínimos cuadrados)
+    const sumX = (n * (n - 1)) / 2
+    const sumX2 = (n * (n - 1) * (2 * n - 1)) / 6
+    const sumY = semanales.reduce((s, v) => s + v.ventas_brutas, 0)
+    const sumXY = semanales.reduce((s, v, i) => s + i * v.ventas_brutas, 0)
+    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX)
+    const intercept = (sumY - slope * sumX) / n
+
+    const data = semanales.map((v, i) => {
+      const b = baseline.find((b) => b.semana_inicio === v.semana_inicio)
+      return {
         semana: format(parseISO(v.semana_inicio), 'dd/MM', { locale: es }),
         Ventas: v.ventas_brutas,
-        Comprobantes: v.comprobantes,
-      })),
-    [semanales],
+        Baseline: b?.promedio_8s ?? null,
+        Tendencia: Math.round(intercept + slope * i),
+      }
+    })
+
+    return {
+      chartData: data,
+      trendColor: slope >= 0 ? '#22c55e' : '#ef4444',
+    }
+  }, [semanales, baseline])
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-sm font-semibold text-gray-700">Ventas semanales</h2>
+        <div className="flex gap-1">
+          {([8, 16, 32] as const).map((w) => (
+            <button
+              key={w}
+              onClick={() => setWeeks(w)}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                weeks === w
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              }`}
+            >
+              {w}s
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="text-xs text-gray-400 mb-4">Últimas {weeks} semanas</p>
+      {loading ? (
+        <div className="h-60 animate-pulse bg-gray-50 rounded-lg" />
+      ) : (
+        <ResponsiveContainer width="100%" height={240}>
+          <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+            <XAxis dataKey="semana" tick={{ fontSize: 10 }} interval={weeks > 16 ? 3 : 0} />
+            <YAxis
+              tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
+              tick={{ fontSize: 10 }}
+              width={48}
+            />
+            <Tooltip formatter={(v: number, name: string) => [formatCurrency(v), name]} />
+            <Legend />
+            <Bar dataKey="Ventas" fill="#f97316" radius={[4, 4, 0, 0]} />
+            <Line
+              type="monotone"
+              dataKey="Baseline"
+              name="Promedio histórico"
+              stroke="#94a3b8"
+              strokeDasharray="4 4"
+              strokeWidth={1.5}
+              dot={false}
+              connectNulls
+            />
+            <Line
+              type="monotone"
+              dataKey="Tendencia"
+              stroke={trendColor}
+              strokeWidth={2}
+              dot={false}
+              connectNulls
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      )}
+    </div>
   )
+}
+
+// ─── Dashboard principal ─────────────────────────────────────────────────────
+export default function Dashboard() {
+  // Fetch fijo para KPIs — nunca cambia al interactuar con los gráficos
+  const { today, baseline, loading: loadingKpis } = useVentasDiarias(30)
 
   const todayBaseline = today ? baseline.find((b) => b.fecha === today.fecha) : null
   const variacion =
     today && todayBaseline && todayBaseline.promedio_28d > 0
       ? ((today.ventas_brutas - todayBaseline.promedio_28d) / todayBaseline.promedio_28d) * 100
       : undefined
+
+  const loading = loadingKpis
 
   if (loading) {
     return (
@@ -79,7 +240,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* KPI Cards */}
+      {/* KPI Cards — no se ven afectadas por el selector del gráfico */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <KpiCard
           title="Ventas — último día"
@@ -110,92 +271,11 @@ export default function Dashboard() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Daily sales area chart */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-1">
-            <h2 className="text-sm font-semibold text-gray-700">
-              Ventas diarias — últimos {chartDays} días
-            </h2>
-            <div className="flex gap-1">
-              {([7, 30, 90] as const).map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setChartDays(d)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                    chartDays === d
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                  }`}
-                >
-                  {d}d
-                </button>
-              ))}
-            </div>
-          </div>
-          <p className="text-xs text-gray-400 mb-4">
-            Comparado con el promedio móvil de 28 días
-          </p>
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={dailyChartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="gradVentas" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f97316" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-              <XAxis dataKey="fecha" tick={{ fontSize: 11 }} interval={4} />
-              <YAxis
-                tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
-                tick={{ fontSize: 11 }}
-                width={52}
-              />
-              <Tooltip
-                formatter={(v: number, name: string) => [formatCurrency(v), name]}
-              />
-              <Legend iconType="line" />
-              <Area
-                type="monotone"
-                dataKey="Ventas"
-                stroke="#f97316"
-                fill="url(#gradVentas)"
-                strokeWidth={2}
-                dot={false}
-              />
-              <Area
-                type="monotone"
-                dataKey="Prom. 28d"
-                stroke="#94a3b8"
-                fill="none"
-                strokeDasharray="4 4"
-                strokeWidth={1.5}
-                dot={false}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+        {/* Gráfico diario aislado — solo este componente re-renderiza al cambiar período */}
+        <DailyChartCard />
 
-        {/* Weekly bar chart */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="text-sm font-semibold text-gray-700 mb-1">Ventas semanales</h2>
-          <p className="text-xs text-gray-400 mb-4">Últimas 8 semanas</p>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart
-              data={weeklyChartData}
-              margin={{ top: 5, right: 5, left: 0, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-              <XAxis dataKey="semana" tick={{ fontSize: 10 }} />
-              <YAxis
-                tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
-                tick={{ fontSize: 10 }}
-                width={48}
-              />
-              <Tooltip formatter={(v: number, name: string) => [formatCurrency(v), name]} />
-              <Bar dataKey="Ventas" fill="#f97316" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {/* Gráfico semanal aislado — solo este componente re-renderiza al cambiar período */}
+        <WeeklyChartCard />
       </div>
     </div>
   )

@@ -32,7 +32,7 @@ VITE_SUPABASE_ANON_KEY=<anon key already set>
 Current routes:
 | Path | Page | Description |
 |------|------|-------------|
-| `/` | `Dashboard.tsx` | KPIs del último día + gráficos diarios y semanales |
+| `/` | `Dashboard.tsx` | KPIs del último día + gráfico diario (7/30/90d) + gráfico semanal (8/16/32s) |
 | `/ventas` | `Ventas.tsx` | Facturas con filtro de período + chart diario |
 | `/productos` | `Productos.tsx` | Catálogo con filtro por rubro y búsqueda |
 | `/stock` | `Stock.tsx` | Rotación de productos: velocidad de venta y sin movimiento |
@@ -89,3 +89,13 @@ Tailwind con escala de color `primary` (tonos naranja, definida en `tailwind.con
 ### Componentes UI
 
 - `src/components/ui/KpiCard.tsx` — tarjeta de métrica con ícono, valor, subtítulo y tendencia opcional. Props: `title`, `value`, `subtitle`, `icon`, `trend` (número, muestra % con color verde/rojo), `trendLabel` (texto junto al %, default: "vs promedio 28d").
+
+### Patrones de Dashboard
+
+`Dashboard.tsx` usa tres componentes aislados para evitar re-renders innecesarios:
+
+- **KPI cards** — usan `useVentasDiarias(30)` fijo, nunca cambian al interactuar con los gráficos.
+- **`DailyChartCard`** — componente interno con su propio `useState<7|30|90>` y `useVentasDiarias(chartDays)`. Muestra área de ventas + línea de promedio 28d. Solo este componente re-renderiza al cambiar el período.
+- **`WeeklyChartCard`** — componente interno con su propio `useState<8|16|32>` y `useVentasSemanales(weeks)`. Muestra barras de ventas + línea de baseline histórico (gris punteada) + línea de tendencia por regresión lineal (verde = alza, roja = baja). Solo este componente re-renderiza al cambiar el período.
+
+Al agregar nuevos gráficos interactivos al Dashboard, seguir este mismo patrón: encapsular estado + hook + JSX en un componente propio.
