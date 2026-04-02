@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { TrendingUp, Receipt, ShoppingCart, Layers } from 'lucide-react'
 import {
   AreaChart,
@@ -24,7 +24,8 @@ function SkeletonCard() {
 }
 
 export default function Dashboard() {
-  const { ventasDiarias, baseline, today, loading: loadingDiarias } = useVentasDiarias(30)
+  const [chartDays, setChartDays] = useState<7 | 30 | 90>(30)
+  const { ventasDiarias, baseline, today, loading: loadingDiarias } = useVentasDiarias(chartDays)
   const { ventas: semanales, loading: loadingSemanales } = useVentasSemanales(8)
 
   const loading = loadingDiarias || loadingSemanales
@@ -111,9 +112,26 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Daily sales area chart */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="text-sm font-semibold text-gray-700 mb-1">
-            Ventas diarias — últimos 30 días
-          </h2>
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-sm font-semibold text-gray-700">
+              Ventas diarias — últimos {chartDays} días
+            </h2>
+            <div className="flex gap-1">
+              {([7, 30, 90] as const).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setChartDays(d)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                    chartDays === d
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}
+                >
+                  {d}d
+                </button>
+              ))}
+            </div>
+          </div>
           <p className="text-xs text-gray-400 mb-4">
             Comparado con el promedio móvil de 28 días
           </p>
