@@ -3,8 +3,9 @@ import { TrendingUp, Receipt, ShoppingCart, Layers } from 'lucide-react'
 import {
   AreaChart,
   Area,
-  BarChart,
   Bar,
+  ComposedChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -117,12 +118,23 @@ function WeeklyChartCard() {
   const [weeks, setWeeks] = useState<8 | 16 | 32>(8)
   const { ventas: semanales, loading } = useVentasSemanales(weeks)
 
+  const WINDOW = 3
+
   const chartData = useMemo(
     () =>
-      semanales.map((v) => ({
-        semana: format(parseISO(v.semana_inicio), 'dd/MM', { locale: es }),
-        Ventas: v.ventas_brutas,
-      })),
+      semanales.map((v, i, arr) => {
+        const desde = Math.max(0, i - WINDOW + 1)
+        const ventana = arr.slice(desde, i + 1)
+        const media =
+          ventana.length === WINDOW
+            ? ventana.reduce((s, x) => s + x.ventas_brutas, 0) / WINDOW
+            : null
+        return {
+          semana: format(parseISO(v.semana_inicio), 'dd/MM', { locale: es }),
+          Ventas: v.ventas_brutas,
+          'Media 3s': media,
+        }
+      }),
     [semanales],
   )
 
@@ -151,7 +163,7 @@ function WeeklyChartCard() {
         <div className="h-60 animate-pulse bg-gray-50 rounded-lg" />
       ) : (
         <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+          <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
             <XAxis dataKey="semana" tick={{ fontSize: 10 }} interval={weeks > 16 ? 3 : 0} />
             <YAxis
@@ -160,8 +172,17 @@ function WeeklyChartCard() {
               width={48}
             />
             <Tooltip formatter={(v: number, name: string) => [formatCurrency(v), name]} />
+            <Legend iconType="line" />
             <Bar dataKey="Ventas" fill="#f97316" radius={[4, 4, 0, 0]} />
-          </BarChart>
+            <Line
+              type="monotone"
+              dataKey="Media 3s"
+              stroke="#3b82f6"
+              strokeWidth={2}
+              dot={false}
+              connectNulls={false}
+            />
+          </ComposedChart>
         </ResponsiveContainer>
       )}
     </div>
