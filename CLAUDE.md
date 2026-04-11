@@ -32,7 +32,7 @@ VITE_SUPABASE_ANON_KEY=<anon key already set>
 Current routes:
 | Path | Page | Description |
 |------|------|-------------|
-| `/` | `Dashboard.tsx` | KPIs del último día + gráfico diario (7/30/90d) + gráfico semanal (8/16/32s) |
+| `/` | `Dashboard.tsx` | KPIs del último día + gráfico diario (7/30/90d) + gráfico semanal (8/16/32s) + gráfico horario (7/30/90d) |
 | `/ventas` | `Ventas.tsx` | Facturas con filtro de período + chart diario |
 | `/productos` | `Productos.tsx` | Catálogo con filtro por rubro y búsqueda |
 | `/stock` | `Stock.tsx` | Rotación de productos: velocidad de venta y sin movimiento |
@@ -60,12 +60,28 @@ The client is a singleton exported from `src/lib/supabase.ts`. All database quer
 
 **Nota:** `pagos` está vacía. `tenants` es interna de Supabase Realtime, no contiene datos del negocio.
 
+#### Zona horaria (importante)
+
+La columna `facturas.fecha_registro` es un `timestamp` naive de Postgres: los valores están en **UTC** pero Supabase los devuelve como string sin sufijo (`"2025-08-22T23:55:54"`, sin `Z`). Si se parsea directo con `new Date(...)`, JavaScript lo interpreta como hora local del navegador y cualquier conversión posterior con `Intl.DateTimeFormat` queda anulada.
+
+Patrón correcto para leer la hora local de Argentina (ART, UTC−3):
+
+```ts
+const raw = row.fecha_registro
+const iso = raw.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(raw) ? raw : `${raw}Z`
+const d = new Date(iso)
+// d ahora es un Date UTC correcto; formatear con timeZone: 'America/Argentina/Buenos_Aires'
+```
+
+Ver `src/hooks/useVentasHorarias.ts` como referencia. `fecha_factura` en cambio siempre trae `03:00:00` (medianoche ART en UTC) y solo representa la fecha del comprobante, no sirve para análisis horario.
+
 #### Hooks disponibles
 
 | Hook | Retorna | Uso |
 |------|---------|-----|
 | `useVentasDiarias(days)` | `{ ventasDiarias, baseline, today, loading, error }` | Dashboard, Ventas |
 | `useVentasSemanales(weeks)` | `{ ventas, baseline, loading, error }` | Dashboard, Reportes |
+| `useVentasHorarias(days)` | `{ data, loading, error }` — array de 24 horas con `cantidad`, `monto`, `promedioCantidad`, `promedioMonto` (agregado client-side por hora local ART desde `facturas.fecha_registro`) | Dashboard |
 | `useFacturas({ limit, from, to })` | `{ facturas, loading, error }` | Ventas |
 | `useProductos()` | `{ productos, loading, error }` | Productos, Stock |
 | `useDetalleVentas()` | `{ detalles, loading, error }` | Stock, Reportes |
@@ -92,10 +108,11 @@ Tailwind con escala de color `primary` (tonos naranja, definida en `tailwind.con
 
 ### Patrones de Dashboard
 
-`Dashboard.tsx` usa tres componentes aislados para evitar re-renders innecesarios:
+`Dashboard.tsx` usa componentes aislados para evitar re-renders innecesarios:
 
 - **KPI cards** — usan `useVentasDiarias(30)` fijo, nunca cambian al interactuar con los gráficos.
 - **`DailyChartCard`** — componente interno con su propio `useState<7|30|90>` y `useVentasDiarias(chartDays)`. Muestra área de ventas + línea de promedio 28d. Solo este componente re-renderiza al cambiar el período.
 - **`WeeklyChartCard`** — componente interno con su propio `useState<8|16|32>` y `useVentasSemanales(weeks)`. Muestra barras de ventas + línea de baseline histórico (gris punteada) + línea de tendencia por regresión lineal (verde = alza, roja = baja). Solo este componente re-renderiza al cambiar el período.
+- **`HourlyChartCard`** — componente interno con su propio `useState<7|30|90>` + toggle `cantidad|monto` y `useVentasHorarias(chartDays)`. Renderizado full-width debajo de la grilla de diario/semanal. `BarChart` de 24 horas con promedio por día, muestra pico y valle inline en la cabecera. La conversión a hora local ART (UTC-3) se hace en el hook con `Intl.DateTimeFormat` para ser robusta a la zona horaria del navegador.
 
 Al agregar nuevos gráficos interactivos al Dashboard, seguir este mismo patrón: encapsular estado + hook + JSX en un componente propio.
