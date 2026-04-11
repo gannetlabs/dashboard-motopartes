@@ -3,6 +3,7 @@ import { TrendingUp, Receipt, ShoppingCart, Layers } from 'lucide-react'
 import {
   AreaChart,
   Area,
+  BarChart,
   ComposedChart,
   Bar,
   Line,
@@ -18,6 +19,7 @@ import { es } from 'date-fns/locale'
 import KpiCard from '@/components/ui/KpiCard'
 import { useVentasDiarias } from '@/hooks/useVentasDiarias'
 import { useVentasSemanales } from '@/hooks/useVentasSemanales'
+import { useVentasHorarias } from '@/hooks/useVentasHorarias'
 import { formatCurrency } from '@/lib/utils'
 
 function SkeletonCard() {
@@ -207,6 +209,146 @@ function WeeklyChartCard() {
   )
 }
 
+// ─── Gráfico por hora del día aislado ────────────────────────────────────────
+// Muestra la distribución horaria de ventas (cantidad o monto) promediada por
+// día en el período seleccionado. Útil para decisiones de RRHH (turnos).
+function HourlyChartCard() {
+  const [chartDays, setChartDays] = useState<7 | 30 | 90>(30)
+  const [metrica, setMetrica] = useState<'cantidad' | 'monto'>('cantidad')
+  const { data, loading } = useVentasHorarias(chartDays)
+
+  const { chartData, pico, valle } = useMemo(() => {
+    const key = metrica === 'cantidad' ? 'promedioCantidad' : 'promedioMonto'
+    const activas = data.filter((d) => d.cantidad > 0)
+    const pico = activas.reduce<typeof activas[number] | null>(
+      (best, d) => (!best || d[key] > best[key] ? d : best),
+      null,
+    )
+    const valle = activas.reduce<typeof activas[number] | null>(
+      (worst, d) => (!worst || d[key] < worst[key] ? d : worst),
+      null,
+    )
+    const chartData = data.map((d) => ({
+      horaLabel: d.horaLabel,
+      valor: d[key],
+      promedioCantidad: d.promedioCantidad,
+      promedioMonto: d.promedioMonto,
+    }))
+    return { chartData, pico, valle }
+  }, [data, metrica])
+
+  const formatPromCantidad = (v: number) => `${v.toFixed(1)} v/día`
+  const formatPromMonto = (v: number) => formatCurrency(Math.round(v))
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+        <h2 className="text-sm font-semibold text-gray-700">
+          Ventas por hora del día
+        </h2>
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1">
+            {(['cantidad', 'monto'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMetrica(m)}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                  metrica === m
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}
+              >
+                {m === 'cantidad' ? 'Cantidad' : 'Monto'}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1">
+            {([7, 30, 90] as const).map((d) => (
+              <button
+                key={d}
+                onClick={() => setChartDays(d)}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                  chartDays === d
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}
+              >
+                {d}d
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <p className="text-xs text-gray-400 mb-4">
+        Promedio por día en los últimos {chartDays} días (hora Argentina)
+        {pico && valle && (
+          <>
+            {' · '}
+            <span className="text-gray-600 font-medium">
+              Pico: {pico.horaLabel} (
+              {metrica === 'cantidad'
+                ? formatPromCantidad(pico.promedioCantidad)
+                : formatPromMonto(pico.promedioMonto)}
+              )
+            </span>
+            {' · '}
+            <span className="text-gray-600 font-medium">
+              Valle: {valle.horaLabel} (
+              {metrica === 'cantidad'
+                ? formatPromCantidad(valle.promedioCantidad)
+                : formatPromMonto(valle.promedioMonto)}
+              )
+            </span>
+          </>
+        )}
+      </p>
+      {loading ? (
+        <div className="h-60 animate-pulse bg-gray-50 rounded-lg" />
+      ) : (
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+            <XAxis dataKey="horaLabel" tick={{ fontSize: 10 }} interval={1} />
+            <YAxis
+              tickFormatter={(v: number) =>
+                metrica === 'cantidad'
+                  ? v.toFixed(v < 10 ? 1 : 0)
+                  : `$${(v / 1000).toFixed(0)}k`
+              }
+              tick={{ fontSize: 11 }}
+              width={52}
+            />
+            <Tooltip
+              formatter={(_v: number, _name: string, item) => {
+                const payload = item.payload as {
+                  promedioCantidad: number
+                  promedioMonto: number
+                }
+                if (metrica === 'cantidad') {
+                  return [
+                    `${payload.promedioCantidad.toFixed(1)} ventas/día · ${formatCurrency(
+                      Math.round(payload.promedioMonto),
+                    )}/día`,
+                    'Promedio',
+                  ]
+                }
+                return [
+                  `${formatCurrency(Math.round(payload.promedioMonto))}/día · ${payload.promedioCantidad.toFixed(
+                    1,
+                  )} ventas/día`,
+                  'Promedio',
+                ]
+              }}
+              labelFormatter={(label: string) => `Hora ${label}`}
+            />
+            <Bar dataKey="valor" fill="#f97316" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  )
+}
+
 // ─── Dashboard principal ─────────────────────────────────────────────────────
 export default function Dashboard() {
   // Fetch fijo para KPIs — nunca cambia al interactuar con los gráficos
@@ -277,6 +419,9 @@ export default function Dashboard() {
         {/* Gráfico semanal aislado — solo este componente re-renderiza al cambiar período */}
         <WeeklyChartCard />
       </div>
+
+      {/* Gráfico horario aislado — ancho completo para aprovechar las 24 barras */}
+      <HourlyChartCard />
     </div>
   )
 }
