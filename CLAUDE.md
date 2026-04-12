@@ -33,7 +33,7 @@ Current routes:
 | Path | Page | Description |
 |------|------|-------------|
 | `/` | `Dashboard.tsx` | KPIs del último día + gráfico diario (7/30/90d) + gráfico semanal (8/16/32s) + gráfico horario (7/30/90d) |
-| `/ventas` | `Ventas.tsx` | Facturas con filtro de período + chart diario |
+| `/ventas` | `Ventas.tsx` | KPIs + chart diario (7/30/90d) + analytics accionables: top productos, composición por rubro, distribución de tickets, ventas por día de semana, notas de crédito |
 | `/productos` | `Productos.tsx` | Catálogo con filtro por rubro y búsqueda |
 | `/stock` | `Stock.tsx` | Rotación de productos: velocidad de venta y sin movimiento |
 | `/reportes` | `Reportes.tsx` | Margen bruto por rubro y top productos |
@@ -83,8 +83,8 @@ Ver `src/hooks/useVentasHorarias.ts` como referencia. `fecha_factura` en cambio 
 | `useVentasSemanales(weeks)` | `{ ventas, baseline, loading, error }` | Dashboard, Reportes |
 | `useVentasHorarias(days)` | `{ data, loading, error }` — array de 24 horas con `cantidad`, `monto`, `promedioCantidad`, `promedioMonto` (agregado client-side por hora local ART desde `facturas.fecha_registro`) | Dashboard |
 | `useFacturas({ limit, from, to })` | `{ facturas, loading, error }` | Ventas |
-| `useProductos()` | `{ productos, loading, error }` | Productos, Stock |
-| `useDetalleVentas()` | `{ detalles, loading, error }` | Stock, Reportes |
+| `useProductos()` | `{ productos, loading, error }` | Productos, Stock, Ventas |
+| `useDetalleVentas()` | `{ detalles, loading, error }` | Stock, Reportes, Ventas |
 
 `useDetalleVentas` también exporta `computeProductoStats(detalles, days?)` que agrega los detalles por `cod_item` y devuelve `ProductoStats[]` ordenados por ingresos descendente.
 
@@ -116,3 +116,21 @@ Tailwind con escala de color `primary` (tonos naranja, definida en `tailwind.con
 - **`HourlyChartCard`** — componente interno con su propio `useState<7|30|90>` + toggle `cantidad|monto` y `useVentasHorarias(chartDays)`. Renderizado full-width debajo de la grilla de diario/semanal. `BarChart` de 24 horas con promedio por día, muestra pico y valle inline en la cabecera. La conversión a hora local ART (UTC-3) se hace en el hook con `Intl.DateTimeFormat` para ser robusta a la zona horaria del navegador.
 
 Al agregar nuevos gráficos interactivos al Dashboard, seguir este mismo patrón: encapsular estado + hook + JSX en un componente propio.
+
+### Patrones de Ventas
+
+`Ventas.tsx` tiene un selector de período global (`useState<7|30|90>`) que controla todos los componentes analíticos. A diferencia del Dashboard (donde cada chart tiene su propio período independiente), acá todos comparten el mismo período y los datos se fetchean **una vez en el padre** para evitar llamadas duplicadas:
+
+- `useVentasDiarias(period)` — para KPIs, gráfico diario y `VentasPorDiaCard`
+- `useFacturas({ limit: 500, from })` — compartido entre `DistribucionTicketsCard` y `NotasCreditoCard`
+- `useDetalleVentas()` — compartido entre `TopProductosCard` y `ComposicionRubroCard`
+- `useProductos()` — para `ComposicionRubroCard`
+
+Los datos se pasan como props a cada componente interno. Cada componente incluye un `<p className="text-xs text-gray-400">` debajo del título explicando para qué sirve y cómo usarlo.
+
+**Componentes internos de Ventas.tsx:**
+- **`TopProductosCard`** — top 10 productos por ingresos en el período, con margen% color-coded (verde ≥20%, amber <20%)
+- **`ComposicionRubroCard`** — gráfico horizontal con participación % de cada rubro en el período
+- **`DistribucionTicketsCard`** — histograma de `total_factura` en 5 rangos ($5k, $15k, $50k, $100k)
+- **`VentasPorDiaCard`** — promedio de ventas por día de la semana (Lun-Dom) usando `parseISO(fecha).getDay()`
+- **`NotasCreditoCard`** — indicador compacto: cantidad NC, monto NC, ratio % sobre facturado (verde <5%, amber 5-10%, rojo >10%)
