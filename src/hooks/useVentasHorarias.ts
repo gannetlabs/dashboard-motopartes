@@ -48,6 +48,8 @@ export function useVentasHorarias(days = 30) {
           .from('facturas')
           .select('fecha_registro,total_factura')
           .eq('anulada', false)
+          // Exclude credit notes: they are refunds, not sales (DUX business rule)
+          .neq('tipo_comprobante', 'NOTA_CREDITO')
           .gte('fecha_registro', fromIso)
           .limit(5000)
 
