@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { DetalleFactura } from '@/types'
+import { fetchAllPages } from '@/lib/fetchAll'
+import type { DetalleFactura, Factura } from '@/types'
+
+type FacturaRef = Pick<
+  Factura,
+  'id_factura' | 'fecha_factura' | 'anulada' | 'tipo_comprobante'
+>
 
 export interface DetalleConFecha extends DetalleFactura {
   fecha_factura: string
@@ -28,23 +34,31 @@ export function useDetalleVentas() {
       setLoading(true)
       setError(null)
       try {
-        const [detRes, facRes] = await Promise.all([
-          supabase.from('detalle_factura').select('*').limit(5000),
-          supabase
-            .from('facturas')
-            .select('id_factura,fecha_factura,anulada')
-            .limit(5000),
+        // Paginate instead of a hardcoded .limit(): detalle_factura already
+        // exceeds 5000 rows, so a fixed cap would silently drop the overflow.
+        const [detalleRows, facturaRows] = await Promise.all([
+          fetchAllPages<DetalleFactura>((from, to) =>
+            supabase.from('detalle_factura').select('*').range(from, to),
+          ),
+          fetchAllPages<FacturaRef>((from, to) =>
+            supabase
+              .from('facturas')
+              .select('id_factura,fecha_factura,anulada,tipo_comprobante')
+              .range(from, to),
+          ),
         ])
-        if (detRes.error) throw detRes.error
-        if (facRes.error) throw facRes.error
 
         const fechaMap = new Map<number, string>()
-        for (const f of facRes.data ?? []) {
-          if (!f.anulada) fechaMap.set(f.id_factura, f.fecha_factura)
+        for (const f of facturaRows) {
+          // Exclude credit notes: they are refunds, not sales (DUX business rule).
+          // Their detalle rows are dropped because their id_factura never enters the map.
+          if (!f.anulada && f.tipo_comprobante !== 'NOTA_CREDITO') {
+            fechaMap.set(f.id_factura, f.fecha_factura)
+          }
         }
 
         const merged: DetalleConFecha[] = []
-        for (const d of detRes.data ?? []) {
+        for (const d of detalleRows) {
           const fecha = fechaMap.get(d.id_factura)
           if (fecha) merged.push({ ...d, fecha_factura: fecha })
         }
