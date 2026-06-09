@@ -49,7 +49,7 @@ export default function Sidebar() {
               )
             }
           >
-            <Icon size={18} />
+            <Icon size={18} aria-hidden="true" />
             {label}
           </NavLink>
         ))}
