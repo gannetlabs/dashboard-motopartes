@@ -17,14 +17,12 @@ import {
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import KpiCard from '@/components/ui/KpiCard'
+import SegmentedControl from '@/components/ui/SegmentedControl'
+import { CardSkeleton, KpiGridSkeleton } from '@/components/ui/Skeleton'
 import { useVentasDiarias } from '@/hooks/useVentasDiarias'
 import { useVentasSemanales } from '@/hooks/useVentasSemanales'
 import { useVentasHorarias } from '@/hooks/useVentasHorarias'
 import { formatCurrency } from '@/lib/utils'
-
-function SkeletonCard() {
-  return <div className="bg-white rounded-xl border border-gray-200 p-5 h-28 animate-pulse" />
-}
 
 // ─── Gráfico diario aislado ──────────────────────────────────────────────────
 // Maneja su propio estado de período y su propio fetch, de modo que al
@@ -52,21 +50,16 @@ function DailyChartCard() {
         <h2 className="text-sm font-semibold text-gray-700">
           Ventas diarias — últimos {chartDays} días
         </h2>
-        <div className="flex gap-1">
-          {([7, 30, 90] as const).map((d) => (
-            <button
-              key={d}
-              onClick={() => setChartDays(d)}
-              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                chartDays === d
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-              }`}
-            >
-              {d}d
-            </button>
-          ))}
-        </div>
+        <SegmentedControl<7 | 30 | 90>
+          options={[
+            { label: '7d', value: 7 },
+            { label: '30d', value: 30 },
+            { label: '90d', value: 90 },
+          ]}
+          value={chartDays}
+          onChange={setChartDays}
+          aria-label="Período del gráfico diario"
+        />
       </div>
       <p className="text-xs text-gray-400 mb-4">
         Comparado con el promedio móvil de 28 días
@@ -152,21 +145,16 @@ function WeeklyChartCard() {
     <div className="bg-white rounded-xl border border-gray-200 p-5">
       <div className="flex items-center justify-between mb-1">
         <h2 className="text-sm font-semibold text-gray-700">Ventas semanales</h2>
-        <div className="flex gap-1">
-          {([8, 16, 32] as const).map((w) => (
-            <button
-              key={w}
-              onClick={() => setWeeks(w)}
-              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                weeks === w
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-              }`}
-            >
-              {w}s
-            </button>
-          ))}
-        </div>
+        <SegmentedControl<8 | 16 | 32>
+          options={[
+            { label: '8s', value: 8 },
+            { label: '16s', value: 16 },
+            { label: '32s', value: 32 },
+          ]}
+          value={weeks}
+          onChange={setWeeks}
+          aria-label="Cantidad de semanas"
+        />
       </div>
       <p className="text-xs text-gray-400 mb-4">Últimas {weeks} semanas</p>
       {loading ? (
@@ -247,36 +235,25 @@ function HourlyChartCard() {
           Ventas por hora del día
         </h2>
         <div className="flex items-center gap-3">
-          <div className="flex gap-1">
-            {(['cantidad', 'monto'] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMetrica(m)}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                  metrica === m
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                }`}
-              >
-                {m === 'cantidad' ? 'Cantidad' : 'Monto'}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-1">
-            {([7, 30, 90] as const).map((d) => (
-              <button
-                key={d}
-                onClick={() => setChartDays(d)}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                  chartDays === d
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                }`}
-              >
-                {d}d
-              </button>
-            ))}
-          </div>
+          <SegmentedControl<'cantidad' | 'monto'>
+            options={[
+              { label: 'Cantidad', value: 'cantidad' },
+              { label: 'Monto', value: 'monto' },
+            ]}
+            value={metrica}
+            onChange={setMetrica}
+            aria-label="Métrica"
+          />
+          <SegmentedControl<7 | 30 | 90>
+            options={[
+              { label: '7d', value: 7 },
+              { label: '30d', value: 30 },
+              { label: '90d', value: 90 },
+            ]}
+            value={chartDays}
+            onChange={setChartDays}
+            aria-label="Período del gráfico horario"
+          />
         </div>
       </div>
       <p className="text-xs text-gray-400 mb-4">
@@ -365,12 +342,10 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
-        </div>
+        <KpiGridSkeleton />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-5 h-72 animate-pulse" />
-          <div className="bg-white rounded-xl border border-gray-200 p-5 h-72 animate-pulse" />
+          <CardSkeleton className="lg:col-span-2 p-5 h-72" />
+          <CardSkeleton className="p-5 h-72" />
         </div>
       </div>
     )

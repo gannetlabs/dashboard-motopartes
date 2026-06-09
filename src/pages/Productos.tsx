@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import KpiCard from '@/components/ui/KpiCard'
+import { KpiGridSkeleton } from '@/components/ui/Skeleton'
 import { useProductos } from '@/hooks/useProductos'
 import { formatNumber } from '@/lib/utils'
 
@@ -60,11 +61,7 @@ export default function Productos() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 h-28 animate-pulse" />
-          ))}
-        </div>
+        <KpiGridSkeleton />
       </div>
     )
   }
