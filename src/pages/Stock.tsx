@@ -37,8 +37,8 @@ export default function Stock() {
   }, [detalles])
 
   // Days since last sale for each product
-  const today = new Date()
   const enriched = useMemo(() => {
+    const today = new Date()
     return productos
       .filter((p) => p.habilitado)
       .map((p) => {
