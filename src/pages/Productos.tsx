@@ -135,6 +135,7 @@ export default function Productos() {
             />
             <input
               type="text"
+              aria-label="Buscar productos"
               placeholder="Buscar por nombre o código..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
