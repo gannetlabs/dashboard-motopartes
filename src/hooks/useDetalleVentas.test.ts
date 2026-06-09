@@ -1,5 +1,17 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
-import { computeProductoStats, type DetalleConFecha } from './useDetalleVentas'
+import { describe, it, expect, vi, afterEach, beforeEach, type Mock } from 'vitest'
+import { renderHook, waitFor } from '@testing-library/react'
+
+vi.mock('@/lib/supabase', () => ({ supabase: { from: vi.fn() } }))
+
+import { supabase } from '@/lib/supabase'
+import { supabaseFrom } from '@/test/supabaseMock'
+import {
+  computeProductoStats,
+  useDetalleVentas,
+  type DetalleConFecha,
+} from './useDetalleVentas'
+
+const mockFrom = supabase.from as unknown as Mock
 
 // Factory: a DetalleConFecha with sensible defaults, override per test.
 function detalle(overrides: Partial<DetalleConFecha> = {}): DetalleConFecha {
@@ -95,5 +107,53 @@ describe('computeProductoStats', () => {
 
   it('returns an empty array for no input', () => {
     expect(computeProductoStats([])).toEqual([])
+  })
+})
+
+describe('useDetalleVentas (hook)', () => {
+  beforeEach(() => {
+    mockFrom.mockReset()
+  })
+
+  it('merges detalle with its factura date, excluding credit notes and voided', async () => {
+    const detalle_factura = [
+      { id_detalle: 1, id_factura: 1, cod_item: 'A' }, // factura válida
+      { id_detalle: 2, id_factura: 2, cod_item: 'B' }, // factura es NOTA_CREDITO
+      { id_detalle: 3, id_factura: 3, cod_item: 'C' }, // factura anulada
+    ]
+    const facturas = [
+      { id_factura: 1, fecha_factura: '2026-06-01', anulada: false, tipo_comprobante: 'FACTURA' },
+      { id_factura: 2, fecha_factura: '2026-06-02', anulada: false, tipo_comprobante: 'NOTA_CREDITO' },
+      { id_factura: 3, fecha_factura: '2026-06-03', anulada: true, tipo_comprobante: 'FACTURA' },
+    ]
+    mockFrom.mockImplementation(
+      supabaseFrom({
+        detalle_factura: { data: detalle_factura, error: null },
+        facturas: { data: facturas, error: null },
+      }),
+    )
+
+    const { result } = renderHook(() => useDetalleVentas())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    // Solo el detalle de la factura válida sobrevive, con su fecha adjunta.
+    expect(result.current.detalles).toHaveLength(1)
+    expect(result.current.detalles[0].cod_item).toBe('A')
+    expect(result.current.detalles[0].fecha_factura).toBe('2026-06-01')
+  })
+
+  it('surfaces an error from the query', async () => {
+    mockFrom.mockImplementation(
+      supabaseFrom({
+        detalle_factura: { data: null, error: { message: 'boom' } },
+        facturas: { data: [], error: null },
+      }),
+    )
+
+    const { result } = renderHook(() => useDetalleVentas())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.error).toBeTruthy()
+    expect(result.current.detalles).toEqual([])
   })
 })
