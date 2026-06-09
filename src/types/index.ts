@@ -58,6 +58,15 @@ export interface Producto {
   updated_at: string
 }
 
+export interface ProductoStock {
+  cod_item: string
+  stock_disponible: number
+  stock_real: number
+  stock_reservado: number
+  deposito_id: number
+  actualizado_at: string
+}
+
 export interface VentaDiaria {
   id: number
   id_empresa: number
