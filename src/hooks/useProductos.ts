@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getErrorMessage } from '@/lib/utils'
 import type { Producto } from '@/types'
 
 export function useProductos() {
@@ -20,7 +21,7 @@ export function useProductos() {
         if (err) throw err
         setProductos(data ?? [])
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Error al cargar productos')
+        setError(getErrorMessage(e, 'Error al cargar productos'))
       } finally {
         setLoading(false)
       }

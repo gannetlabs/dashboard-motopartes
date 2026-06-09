@@ -128,7 +128,7 @@ function ComposicionRubroCard({
     for (const d of detalles) {
       if (new Date(d.fecha_factura) < cutoff) continue
       const ingresos =
-        d.precio_unitario * d.cantidad * (1 - (d.porc_descuento ?? 0) / 100)
+        d.precio_unitario * d.cantidad * (1 - d.porc_descuento / 100)
       const rubro = rubroByItem.get(d.cod_item) ?? 'Sin rubro'
       rubroMap.set(rubro, (rubroMap.get(rubro) ?? 0) + ingresos)
       total += ingresos
