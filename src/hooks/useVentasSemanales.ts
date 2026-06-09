@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { VentaSemanal, BaselineVentaSemanal } from '@/types'
+import { getErrorMessage } from '@/lib/utils'
 
 export function useVentasSemanales(weeks = 8) {
   const [ventas, setVentas] = useState<VentaSemanal[]>([])
@@ -27,10 +28,10 @@ export function useVentasSemanales(weeks = 8) {
         ])
         if (v.error) throw v.error
         if (b.error) throw b.error
-        setVentas((v.data ?? []).reverse())
-        setBaseline((b.data ?? []).reverse())
+        setVentas([...(v.data ?? [])].reverse())
+        setBaseline([...(b.data ?? [])].reverse())
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Error al cargar ventas semanales')
+        setError(getErrorMessage(e, 'Error al cargar ventas semanales'))
       } finally {
         setLoading(false)
       }

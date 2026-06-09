@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getErrorMessage } from '@/lib/utils'
 
 export interface VentaPorHora {
   hora: number
@@ -95,7 +96,7 @@ export function useVentasHorarias(days = 30) {
 
         setData(result)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Error al cargar ventas horarias')
+        setError(getErrorMessage(e, 'Error al cargar ventas horarias'))
       } finally {
         setLoading(false)
       }

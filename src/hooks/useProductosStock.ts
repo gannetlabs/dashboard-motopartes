@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { fetchAllPages } from '@/lib/fetchAll'
+import { getErrorMessage } from '@/lib/utils'
 import type { ProductoStock } from '@/types'
 import type { ProductoStats } from './useDetalleVentas'
 
@@ -34,7 +35,7 @@ export function useProductosStock() {
         )
         setStock(rows)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Error al cargar stock')
+        setError(getErrorMessage(e, 'Error al cargar stock'))
       } finally {
         setLoading(false)
       }

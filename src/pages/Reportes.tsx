@@ -54,8 +54,8 @@ export default function Reportes() {
     for (const d of detalles) {
       const rubro = rubroByItem.get(d.cod_item) ?? 'Sin rubro'
       const ingresos =
-        d.precio_unitario * d.cantidad * (1 - (d.porc_descuento ?? 0) / 100)
-      const costo = (d.costo_unitario ?? 0) * d.cantidad
+        d.precio_unitario * d.cantidad * (1 - d.porc_descuento / 100)
+      const costo = d.costo_unitario * d.cantidad
       const existing = rubroMap.get(rubro)
       if (!existing) {
         rubroMap.set(rubro, { ingresos, costo })
@@ -87,11 +87,11 @@ export default function Reportes() {
   const globalKpis = useMemo(() => {
     const totalIngresos = detalles.reduce(
       (s, d) =>
-        s + d.precio_unitario * d.cantidad * (1 - (d.porc_descuento ?? 0) / 100),
+        s + d.precio_unitario * d.cantidad * (1 - d.porc_descuento / 100),
       0,
     )
     const totalCosto = detalles.reduce(
-      (s, d) => s + (d.costo_unitario ?? 0) * d.cantidad,
+      (s, d) => s + d.costo_unitario * d.cantidad,
       0,
     )
     const margenTotal = totalIngresos - totalCosto

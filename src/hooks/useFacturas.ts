@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getErrorMessage } from '@/lib/utils'
 import type { Factura } from '@/types'
 
 interface UseFacturasOptions {
@@ -32,7 +33,7 @@ export function useFacturas({ limit = 100, from, to }: UseFacturasOptions = {}) 
         if (err) throw err
         setFacturas(data ?? [])
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Error al cargar facturas')
+        setError(getErrorMessage(e, 'Error al cargar facturas'))
       } finally {
         setLoading(false)
       }

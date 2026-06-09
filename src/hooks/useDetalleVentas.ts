@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { fetchAllPages } from '@/lib/fetchAll'
+import { getErrorMessage } from '@/lib/utils'
 import type { DetalleFactura, Factura } from '@/types'
 
 type FacturaRef = Pick<
@@ -65,7 +66,7 @@ export function useDetalleVentas() {
 
         setDetalles(merged)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Error al cargar detalles')
+        setError(getErrorMessage(e, 'Error al cargar detalles'))
       } finally {
         setLoading(false)
       }
@@ -89,8 +90,8 @@ export function computeProductoStats(
   for (const d of detalles) {
     if (cutoff && new Date(d.fecha_factura) < cutoff) continue
 
-    const ingresos = d.precio_unitario * d.cantidad * (1 - (d.porc_descuento ?? 0) / 100)
-    const costo = (d.costo_unitario ?? 0) * d.cantidad
+    const ingresos = d.precio_unitario * d.cantidad * (1 - d.porc_descuento / 100)
+    const costo = d.costo_unitario * d.cantidad
     const margen = ingresos - costo
     const fecha = d.fecha_factura.substring(0, 10)
 
