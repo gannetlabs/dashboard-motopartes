@@ -1,11 +1,15 @@
+import { lazy } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Layout from '@/components/layout/Layout'
-import Dashboard from '@/pages/Dashboard'
-import Ventas from '@/pages/Ventas'
-import Productos from '@/pages/Productos'
-import Stock from '@/pages/Stock'
-import Reportes from '@/pages/Reportes'
-import Config from '@/pages/Config'
+
+// Lazy-loaded so each page (and its heavy deps like Recharts) becomes its own
+// chunk, loaded on demand instead of bloating the initial bundle.
+const Dashboard = lazy(() => import('@/pages/Dashboard'))
+const Ventas = lazy(() => import('@/pages/Ventas'))
+const Productos = lazy(() => import('@/pages/Productos'))
+const Stock = lazy(() => import('@/pages/Stock'))
+const Reportes = lazy(() => import('@/pages/Reportes'))
+const Config = lazy(() => import('@/pages/Config'))
 
 export default function App() {
   return (
