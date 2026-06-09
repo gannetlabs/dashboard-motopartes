@@ -12,6 +12,11 @@ import {
 import KpiCard from '@/components/ui/KpiCard'
 import { useProductos } from '@/hooks/useProductos'
 import { useDetalleVentas, computeProductoStats } from '@/hooks/useDetalleVentas'
+import {
+  useProductosStock,
+  computeStockCritico,
+  type Severidad,
+} from '@/hooks/useProductosStock'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 
 type FilterTab = 'todos' | 'activos' | 'lentos' | 'sin_movimiento'
@@ -22,12 +27,19 @@ const TABS: { key: FilterTab; label: string }[] = [
   { key: 'sin_movimiento', label: 'Sin ventas 60d+' },
 ]
 
+const SEVERITY_BADGE: Record<Severidad, { label: string; color: string }> = {
+  agotado: { label: 'Agotado', color: 'bg-red-50 text-red-700' },
+  critico: { label: 'Crítico', color: 'bg-orange-50 text-orange-700' },
+  bajo: { label: 'Bajo', color: 'bg-amber-50 text-amber-700' },
+}
+
 export default function Stock() {
   const { productos, loading: loadingProductos } = useProductos()
   const { detalles, loading: loadingDetalles } = useDetalleVentas()
+  const { stock, loading: loadingStock } = useProductosStock()
   const [tab, setTab] = useState<FilterTab>('todos')
 
-  const loading = loadingProductos || loadingDetalles
+  const loading = loadingProductos || loadingDetalles || loadingStock
 
   // Stats per product (all time)
   const statsMap = useMemo(() => {
@@ -51,6 +63,19 @@ export default function Stock() {
         return { ...p, stats, daysSince }
       })
   }, [productos, statsMap])
+
+  // Stock crítico: cruza stock disponible con la velocidad de venta de 90 días
+  const stockCritico = useMemo(() => {
+    const ventaStatsMap = new Map(
+      computeProductoStats(detalles, 90).map((s) => [s.cod_item, s]),
+    )
+    return computeStockCritico(stock, ventaStatsMap)
+  }, [stock, detalles])
+
+  const agotadosCount = useMemo(
+    () => stockCritico.filter((s) => s.severidad === 'agotado').length,
+    [stockCritico],
+  )
 
   // KPIs
   const kpis = useMemo(() => {
@@ -133,6 +158,86 @@ export default function Stock() {
           subtitle="Sin ventas en más de 60 días"
           icon={AlertTriangle}
         />
+      </div>
+
+      {/* Stock crítico */}
+      <div className="bg-white rounded-xl border border-gray-200">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-700">Stock Crítico</h2>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Productos que se venden y están agotados o por agotarse, según su ritmo
+            de venta de los últimos 90 días. Priorizá reponer estos.
+          </p>
+          {stockCritico.length > 0 && (
+            <p className="text-xs text-gray-500 mt-2">
+              <span className="font-semibold text-red-600">{agotadosCount}</span>{' '}
+              agotados · {' '}
+              <span className="font-semibold text-gray-700">
+                {stockCritico.length}
+              </span>{' '}
+              en total
+            </p>
+          )}
+        </div>
+        {stockCritico.length === 0 ? (
+          <div className="p-8 text-center text-sm text-gray-400">
+            No hay productos en estado crítico. Todo lo que se vende tiene stock. 🎉
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium">Producto</th>
+                  <th className="px-4 py-3 text-right font-medium">Stock disp.</th>
+                  <th className="px-4 py-3 text-right font-medium">Venta/día</th>
+                  <th className="px-4 py-3 text-right font-medium">Días restantes</th>
+                  <th className="px-4 py-3 text-center font-medium">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {stockCritico.slice(0, 100).map((s) => {
+                  const badge = SEVERITY_BADGE[s.severidad]
+                  return (
+                    <tr key={s.cod_item} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-gray-800 text-xs leading-tight">
+                          {s.descripcion}
+                        </p>
+                        <p className="text-gray-400 font-mono text-xs mt-0.5">
+                          {s.cod_item}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-700">
+                        {formatNumber(s.stockDisponible)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600">
+                        {s.ventaDiaria.toFixed(1)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-700">
+                        {s.severidad === 'agotado'
+                          ? '—'
+                          : `${Math.round(s.diasRestantes ?? 0)}d`}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${badge.color}`}
+                        >
+                          {badge.label}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            {stockCritico.length > 100 && (
+              <p className="px-4 py-3 text-xs text-gray-400 border-t border-gray-50">
+                Mostrando 100 de {stockCritico.length}.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Top 10 por unidades vendidas */}
