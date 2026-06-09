@@ -14,6 +14,7 @@ import {
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import KpiCard from '@/components/ui/KpiCard'
+import { CardSkeleton, KpiGridSkeleton } from '@/components/ui/Skeleton'
 import { useVentasSemanales } from '@/hooks/useVentasSemanales'
 import { useDetalleVentas, computeProductoStats } from '@/hooks/useDetalleVentas'
 import { useProductos } from '@/hooks/useProductos'
@@ -103,12 +104,8 @@ export default function Reportes() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 h-28 animate-pulse" />
-          ))}
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 h-64 animate-pulse" />
+        <KpiGridSkeleton />
+        <CardSkeleton className="h-64" />
       </div>
     )
   }

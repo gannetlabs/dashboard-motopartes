@@ -13,6 +13,7 @@ import {
 } from 'recharts'
 import { TrendingUp, Receipt, ShoppingCart, Tag, FileX2 } from 'lucide-react'
 import KpiCard from '@/components/ui/KpiCard'
+import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useVentasDiarias } from '@/hooks/useVentasDiarias'
 import { useFacturas } from '@/hooks/useFacturas'
 import { useDetalleVentas, computeProductoStats } from '@/hooks/useDetalleVentas'
@@ -410,21 +411,13 @@ export default function Ventas() {
   return (
     <div className="space-y-6">
       {/* Period selector */}
-      <div className="flex gap-2">
-        {PERIODS.map((p) => (
-          <button
-            key={p.days}
-            onClick={() => setPeriod(p.days)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              period === p.days
-                ? 'bg-primary-600 text-white'
-                : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl<Period>
+        options={PERIODS.map((p) => ({ label: p.label, value: p.days }))}
+        value={period}
+        onChange={setPeriod}
+        size="md"
+        aria-label="Período"
+      />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
