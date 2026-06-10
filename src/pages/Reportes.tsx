@@ -15,10 +15,25 @@ import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import KpiCard from '@/components/ui/KpiCard'
 import { CardSkeleton, KpiGridSkeleton } from '@/components/ui/Skeleton'
+import SortableHeader from '@/components/ui/SortableHeader'
 import { useVentasSemanales } from '@/hooks/useVentasSemanales'
-import { useDetalleVentas, computeProductoStats } from '@/hooks/useDetalleVentas'
+import {
+  useDetalleVentas,
+  computeProductoStats,
+  type ProductoStats,
+} from '@/hooks/useDetalleVentas'
 import { useProductos } from '@/hooks/useProductos'
+import { useSortableData, type Accessors } from '@/hooks/useSortableData'
 import { formatCurrency, formatNumber } from '@/lib/utils'
+
+type MargenColumn = 'descripcion' | 'unidades' | 'ingresos' | 'margen' | 'margenPct'
+const margenAccessors: Accessors<ProductoStats, MargenColumn> = {
+  descripcion: (p) => p.descripcion,
+  unidades: (p) => p.unidades,
+  ingresos: (p) => p.ingresos,
+  margen: (p) => p.margen,
+  margenPct: (p) => p.margenPct,
+}
 
 export default function Reportes() {
   const { ventas: semanales, baseline: baselineS, loading: loadingSemanales } =
@@ -83,6 +98,7 @@ export default function Reportes() {
     () => computeProductoStats(detalles).slice(0, 10),
     [detalles],
   )
+  const margen = useSortableData(top10Margen, margenAccessors)
 
   // Global KPIs
   const globalKpis = useMemo(() => {
@@ -214,15 +230,15 @@ export default function Reportes() {
             <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
               <tr>
                 <th className="px-4 py-3 text-left font-medium w-8">#</th>
-                <th className="px-4 py-3 text-left font-medium">Producto</th>
-                <th className="px-4 py-3 text-right font-medium">Uds.</th>
-                <th className="px-4 py-3 text-right font-medium">Ingresos</th>
-                <th className="px-4 py-3 text-right font-medium">Margen ARS</th>
-                <th className="px-4 py-3 text-right font-medium">Margen %</th>
+                <SortableHeader label="Producto" columnKey="descripcion" sortKey={margen.sortKey} sortDirection={margen.sortDirection} onSort={margen.requestSort} />
+                <SortableHeader label="Uds." columnKey="unidades" sortKey={margen.sortKey} sortDirection={margen.sortDirection} onSort={margen.requestSort} align="right" />
+                <SortableHeader label="Ingresos" columnKey="ingresos" sortKey={margen.sortKey} sortDirection={margen.sortDirection} onSort={margen.requestSort} align="right" />
+                <SortableHeader label="Margen ARS" columnKey="margen" sortKey={margen.sortKey} sortDirection={margen.sortDirection} onSort={margen.requestSort} align="right" />
+                <SortableHeader label="Margen %" columnKey="margenPct" sortKey={margen.sortKey} sortDirection={margen.sortDirection} onSort={margen.requestSort} align="right" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {top10Margen.map((p, i) => (
+              {margen.sorted.map((p, i) => (
                 <tr key={p.cod_item} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-gray-400 font-medium">{i + 1}</td>
                   <td className="px-4 py-3">
