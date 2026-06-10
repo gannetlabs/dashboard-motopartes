@@ -11,8 +11,21 @@ import {
 } from 'recharts'
 import KpiCard from '@/components/ui/KpiCard'
 import { KpiGridSkeleton } from '@/components/ui/Skeleton'
+import SortableHeader from '@/components/ui/SortableHeader'
 import { useProductos } from '@/hooks/useProductos'
+import { useSortableData, type Accessors } from '@/hooks/useSortableData'
 import { formatNumber } from '@/lib/utils'
+import type { Producto } from '@/types'
+
+type ProductoColumn = 'cod_item' | 'nombre' | 'rubro_nombre' | 'marca_nombre' | 'habilitado'
+
+const productoAccessors: Accessors<Producto, ProductoColumn> = {
+  cod_item: (p) => p.cod_item,
+  nombre: (p) => p.nombre,
+  rubro_nombre: (p) => p.rubro_nombre,
+  marca_nombre: (p) => p.marca_nombre,
+  habilitado: (p) => (p.habilitado ? 1 : 0),
+}
 
 export default function Productos() {
   const { productos, loading } = useProductos()
@@ -49,6 +62,11 @@ export default function Productos() {
       return matchRubro && matchSearch
     })
   }, [productos, search, rubroFilter])
+
+  const { sorted, sortKey, sortDirection, requestSort } = useSortableData(
+    filtered,
+    productoAccessors,
+  )
 
   const kpis = useMemo(() => {
     const total = productos.length
@@ -155,15 +173,15 @@ export default function Productos() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">Código</th>
-                <th className="px-4 py-3 text-left font-medium">Nombre</th>
-                <th className="px-4 py-3 text-left font-medium">Rubro</th>
-                <th className="px-4 py-3 text-left font-medium">Marca</th>
-                <th className="px-4 py-3 text-center font-medium">Estado</th>
+                <SortableHeader label="Código" columnKey="cod_item" sortKey={sortKey} sortDirection={sortDirection} onSort={requestSort} />
+                <SortableHeader label="Nombre" columnKey="nombre" sortKey={sortKey} sortDirection={sortDirection} onSort={requestSort} />
+                <SortableHeader label="Rubro" columnKey="rubro_nombre" sortKey={sortKey} sortDirection={sortDirection} onSort={requestSort} />
+                <SortableHeader label="Marca" columnKey="marca_nombre" sortKey={sortKey} sortDirection={sortDirection} onSort={requestSort} />
+                <SortableHeader label="Estado" columnKey="habilitado" sortKey={sortKey} sortDirection={sortDirection} onSort={requestSort} align="center" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.slice(0, 200).map((p) => (
+              {sorted.slice(0, 200).map((p) => (
                 <tr key={p.cod_item} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 font-mono text-gray-500 text-xs">{p.cod_item}</td>
                   <td className="px-4 py-3 text-gray-800 font-medium">{p.nombre}</td>

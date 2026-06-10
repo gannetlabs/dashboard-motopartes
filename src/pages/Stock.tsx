@@ -11,14 +11,41 @@ import {
 } from 'recharts'
 import KpiCard from '@/components/ui/KpiCard'
 import { CardSkeleton, KpiGridSkeleton } from '@/components/ui/Skeleton'
+import SortableHeader from '@/components/ui/SortableHeader'
 import { useProductos } from '@/hooks/useProductos'
-import { useDetalleVentas, computeProductoStats } from '@/hooks/useDetalleVentas'
+import {
+  useDetalleVentas,
+  computeProductoStats,
+  type ProductoStats,
+} from '@/hooks/useDetalleVentas'
 import {
   useProductosStock,
   computeStockCritico,
   type Severidad,
+  type StockCritico as StockCriticoRow,
 } from '@/hooks/useProductosStock'
+import { useSortableData, type Accessors } from '@/hooks/useSortableData'
 import { formatCurrency, formatNumber } from '@/lib/utils'
+import type { Producto } from '@/types'
+
+type RotacionRow = Producto & { stats?: ProductoStats; daysSince: number | null }
+
+type StockCriticoColumn = 'descripcion' | 'stockDisponible' | 'ventaDiaria' | 'diasRestantes'
+const stockCriticoAccessors: Accessors<StockCriticoRow, StockCriticoColumn> = {
+  descripcion: (s) => s.descripcion,
+  stockDisponible: (s) => s.stockDisponible,
+  ventaDiaria: (s) => s.ventaDiaria,
+  diasRestantes: (s) => s.diasRestantes ?? null,
+}
+
+type RotacionColumn = 'nombre' | 'rubro_nombre' | 'unidades' | 'ingresos' | 'ultimaVenta'
+const rotacionAccessors: Accessors<RotacionRow, RotacionColumn> = {
+  nombre: (p) => p.nombre,
+  rubro_nombre: (p) => p.rubro_nombre,
+  unidades: (p) => p.stats?.unidades ?? null,
+  ingresos: (p) => p.stats?.ingresos ?? null,
+  ultimaVenta: (p) => p.stats?.ultimaVenta ?? null,
+}
 
 type FilterTab = 'todos' | 'activos' | 'lentos' | 'sin_movimiento'
 const TABS: { key: FilterTab; label: string }[] = [
@@ -73,6 +100,8 @@ export default function Stock() {
     return computeStockCritico(stock, ventaStatsMap)
   }, [stock, detalles])
 
+  const critico = useSortableData(stockCritico, stockCriticoAccessors)
+
   const agotadosCount = useMemo(
     () => stockCritico.filter((s) => s.severidad === 'agotado').length,
     [stockCritico],
@@ -117,6 +146,8 @@ export default function Stock() {
       return b.daysSince - a.daysSince
     })
   }, [enriched, tab])
+
+  const rotacion = useSortableData(tableData, rotacionAccessors)
 
   if (loading) {
     return (
@@ -185,15 +216,15 @@ export default function Stock() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium">Producto</th>
-                  <th className="px-4 py-3 text-right font-medium">Stock disp.</th>
-                  <th className="px-4 py-3 text-right font-medium">Venta/día</th>
-                  <th className="px-4 py-3 text-right font-medium">Días restantes</th>
+                  <SortableHeader label="Producto" columnKey="descripcion" sortKey={critico.sortKey} sortDirection={critico.sortDirection} onSort={critico.requestSort} />
+                  <SortableHeader label="Stock disp." columnKey="stockDisponible" sortKey={critico.sortKey} sortDirection={critico.sortDirection} onSort={critico.requestSort} align="right" />
+                  <SortableHeader label="Venta/día" columnKey="ventaDiaria" sortKey={critico.sortKey} sortDirection={critico.sortDirection} onSort={critico.requestSort} align="right" />
+                  <SortableHeader label="Días restantes" columnKey="diasRestantes" sortKey={critico.sortKey} sortDirection={critico.sortDirection} onSort={critico.requestSort} align="right" />
                   <th className="px-4 py-3 text-center font-medium">Estado</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {stockCritico.slice(0, 100).map((s) => {
+                {critico.sorted.slice(0, 100).map((s) => {
                   const badge = SEVERITY_BADGE[s.severidad]
                   return (
                     <tr key={s.cod_item} className="hover:bg-gray-50 transition-colors">
@@ -301,16 +332,16 @@ export default function Stock() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">Producto</th>
-                <th className="px-4 py-3 text-left font-medium">Rubro</th>
-                <th className="px-4 py-3 text-right font-medium">Uds. vendidas</th>
-                <th className="px-4 py-3 text-right font-medium">Ingresos total</th>
-                <th className="px-4 py-3 text-right font-medium">Última venta</th>
+                <SortableHeader label="Producto" columnKey="nombre" sortKey={rotacion.sortKey} sortDirection={rotacion.sortDirection} onSort={rotacion.requestSort} />
+                <SortableHeader label="Rubro" columnKey="rubro_nombre" sortKey={rotacion.sortKey} sortDirection={rotacion.sortDirection} onSort={rotacion.requestSort} />
+                <SortableHeader label="Uds. vendidas" columnKey="unidades" sortKey={rotacion.sortKey} sortDirection={rotacion.sortDirection} onSort={rotacion.requestSort} align="right" />
+                <SortableHeader label="Ingresos total" columnKey="ingresos" sortKey={rotacion.sortKey} sortDirection={rotacion.sortDirection} onSort={rotacion.requestSort} align="right" />
+                <SortableHeader label="Última venta" columnKey="ultimaVenta" sortKey={rotacion.sortKey} sortDirection={rotacion.sortDirection} onSort={rotacion.requestSort} align="right" />
                 <th className="px-4 py-3 text-center font-medium">Rotación</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {tableData.slice(0, 150).map((p) => {
+              {rotacion.sorted.slice(0, 150).map((p) => {
                 const dias = p.daysSince
                 let badge = { label: 'Sin ventas', color: 'bg-red-50 text-red-600' }
                 if (dias !== null && dias <= 7)

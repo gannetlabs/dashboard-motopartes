@@ -14,12 +14,14 @@ import {
 import { TrendingUp, Receipt, ShoppingCart, Tag, FileX2 } from 'lucide-react'
 import KpiCard from '@/components/ui/KpiCard'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import SortableHeader from '@/components/ui/SortableHeader'
 import { useVentasDiarias } from '@/hooks/useVentasDiarias'
 import { useFacturas } from '@/hooks/useFacturas'
 import { useDetalleVentas, computeProductoStats } from '@/hooks/useDetalleVentas'
 import { useProductos } from '@/hooks/useProductos'
+import { useSortableData, type Accessors } from '@/hooks/useSortableData'
 import { formatCurrency, formatNumber } from '@/lib/utils'
-import type { DetalleConFecha } from '@/hooks/useDetalleVentas'
+import type { DetalleConFecha, ProductoStats } from '@/hooks/useDetalleVentas'
 import type { Producto, Factura, VentaDiaria } from '@/types'
 
 type Period = 7 | 30 | 90
@@ -28,6 +30,14 @@ const PERIODS: { label: string; days: Period }[] = [
   { label: '30 días', days: 30 },
   { label: '90 días', days: 90 },
 ]
+
+type TopProductoColumn = 'descripcion' | 'unidades' | 'ingresos' | 'margenPct'
+const topProductoAccessors: Accessors<ProductoStats, TopProductoColumn> = {
+  descripcion: (p) => p.descripcion,
+  unidades: (p) => p.unidades,
+  ingresos: (p) => p.ingresos,
+  margenPct: (p) => p.margenPct,
+}
 
 // ─── Top 10 Productos del período ─────────────────────────────────────────────
 function TopProductosCard({
@@ -42,6 +52,10 @@ function TopProductosCard({
   const top10 = useMemo(
     () => computeProductoStats(detalles, period).slice(0, 10),
     [detalles, period],
+  )
+  const { sorted, sortKey, sortDirection, requestSort } = useSortableData(
+    top10,
+    topProductoAccessors,
   )
 
   return (
@@ -64,14 +78,14 @@ function TopProductosCard({
             <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
               <tr>
                 <th className="px-4 py-3 text-left font-medium w-8">#</th>
-                <th className="px-4 py-3 text-left font-medium">Producto</th>
-                <th className="px-4 py-3 text-right font-medium">Uds.</th>
-                <th className="px-4 py-3 text-right font-medium">Ingresos</th>
-                <th className="px-4 py-3 text-right font-medium">Margen %</th>
+                <SortableHeader label="Producto" columnKey="descripcion" sortKey={sortKey} sortDirection={sortDirection} onSort={requestSort} />
+                <SortableHeader label="Uds." columnKey="unidades" sortKey={sortKey} sortDirection={sortDirection} onSort={requestSort} align="right" />
+                <SortableHeader label="Ingresos" columnKey="ingresos" sortKey={sortKey} sortDirection={sortDirection} onSort={requestSort} align="right" />
+                <SortableHeader label="Margen %" columnKey="margenPct" sortKey={sortKey} sortDirection={sortDirection} onSort={requestSort} align="right" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {top10.map((p, i) => (
+              {sorted.map((p, i) => (
                 <tr key={p.cod_item} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-gray-400 font-medium">{i + 1}</td>
                   <td className="px-4 py-3">
